@@ -5,5 +5,6 @@ API_KEY = "e477437e-c81c-4297-827c-b3d3d9c8c73d"
 MAC = "6C:C8:40:39:A2:47"
 DATA_FOLDER = "data"
 START_DATE = '2026-01-06' # station installed on 2026-01-06
+TIMEZONE = "Europe/Paris"
 
 PAGE_TITLE = 'Meteo Montseret'
