@@ -1,0 +1,35 @@
+name: Update HTML Page
+
+on:
+  schedule:
+    # every hour
+    - cron: '0 * * * *'
+  workflow_dispatch:  # allow manual launch
+
+jobs:
+  update-page:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        pip install pandas jinja2 requests
+
+    - name: Run script to generate HTML
+      run: |
+        python generate_html.py  # Votre script Python
+    
+    - name: Commit and push if changes
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add index.html
+        git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update HTML page" && git push)
