@@ -1,4 +1,5 @@
 import os
+import time
 import json
 import requests
 import pandas as pd
@@ -58,6 +59,8 @@ def update_data():
         
         # Move to the next day
         date += timedelta(days=1)
+        # wait a bit to avoid hitting the API too hard
+        time.sleep(20)
 
     print("Data is now up to date.")
     return end_date.strftime("%Y-%m-%d")
@@ -169,7 +172,9 @@ def wind_to_symbol(wind_directions, wind_strengths):
     return most_frequent_direction
 
 def live_html():
-    return "soon live here"
+    content = "soon live here"
+    content += f"<br>Last update : {datetime.now(ZoneInfo(TIMEZONE)).strftime('%Y-%m-%d %H:%M:%S')}"
+    return content
 
 def days_table():
     available_days = os.listdir(DATA_FOLDER)
@@ -419,7 +424,7 @@ def frame_html(live_html, days_html, months_html, records_html):
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Page avec Cases</title>
+        <title>{PAGE_TITLE}</title>
         <style>
             * {{
                 margin: 0;
