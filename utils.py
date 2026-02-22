@@ -501,12 +501,16 @@ def frame_html(live_html, days_html, months_html, records_html):
             /* RESPONSIVE - adapt to small screens */
             @media (max-width: 768px) {{
                 .grille {{
-                    grid-template-columns: 1fr; /* 1 seule colonne sur mobile */
+                    grid-template-columns: 1fr;
                     grid-template-rows: auto;
                 }}
-
+                .case-live {{
+                    grid-column: span 1;
+                }}
                 .case-days {{
                     grid-column: span 1;
+                    grid-row: span 1;
+                    font-size: 9px;
                 }}
             }}
         </style>
