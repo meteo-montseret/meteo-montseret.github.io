@@ -8,3 +8,4 @@ START_DATE = '2026-01-06' # station installed on 2026-01-06
 TIMEZONE = "Europe/Paris"
 
 PAGE_TITLE = 'Meteo Montseret'
+LINKS = {'windy' : 'https://www.windy.com/station/pws-f0860d44?43.114,2.837,11,p:temp'}

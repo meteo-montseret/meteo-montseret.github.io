@@ -6,7 +6,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from config import API_URL, APPLICATION_KEY, API_KEY, MAC, DATA_FOLDER, START_DATE, PAGE_TITLE, TIMEZONE
+from config import API_URL, APPLICATION_KEY, API_KEY, MAC, DATA_FOLDER, START_DATE, PAGE_TITLE, TIMEZONE, LINKS
 
 def update_data():
     os.makedirs(DATA_FOLDER, exist_ok=True)
@@ -60,7 +60,7 @@ def update_data():
         # Move to the next day
         date += timedelta(days=1)
         # wait a bit to avoid hitting the API too hard
-        time.sleep(20)
+        time.sleep(3)
 
     print("Data is now up to date.")
     return end_date.strftime("%Y-%m-%d")
@@ -172,7 +172,9 @@ def wind_to_symbol(wind_directions, wind_strengths):
     return most_frequent_direction
 
 def live_html():
-    content = "soon live here"
+    for key in LINKS:
+        link = LINKS[key]
+        content = f'live on <a href="{link}" target="_blank">{key}</a>'
     content += f"<br>Last update : {datetime.now(ZoneInfo(TIMEZONE)).strftime('%Y-%m-%d %H:%M:%S')}"
     return content
 
@@ -216,8 +218,7 @@ def days_table():
             solar_wh_per_m2 = int(day_df["solar"].sum() * (5 / 60.0)) # convert from W/m² in 5min to Wh/m² in 1h
             average_wind_speed = day_df["wind_speed"].mean()
             max_gust = int(day_df["wind_gust"].max())
-
-
+            #####################
             df.loc[df["Date"] == date, "Tmin"] = tmin
             df.loc[df["Date"] == date, "Tmoy"] = tmoy
             df.loc[df["Date"] == date, "Tmax"] = tmax
@@ -226,30 +227,6 @@ def days_table():
             df.loc[df["Date"] == date, "watt-heure/m²"] = solar_wh_per_m2
             df.loc[df["Date"] == date, "vent moyen (km/h)"] = average_wind_speed
             df.loc[df["Date"] == date, "rafale max (km/h)"] = max_gust
-
-            #temperatures = list(data["outdoor"]["temperature"]["list"].values())
-            #temperatures = [float(t) for t in temperatures]
-            #rain_24h_at_00h = list(data['rainfall']['24_hours']['list'].values())[0]
-            #rain_24h_at_00h = float(rain_24h_at_00h)
-            ## TODO check if the 24h rainfall at 00h is correct, if not take the last 'daily' of the current day
-            #last_daily_rain = float(list(data['rainfall']['daily']['list'].values())[-1])
-            #solar_instants = list(data['solar_and_uvi']['solar']['list'].values())
-            #solar_instants = [float(s) for s in solar_instants]
-            #solar_wh_per_m2 = [v * (5 / 60.0) for v in solar_instants]
-            #solar_wh_per_m2 = int(sum(solar_wh_per_m2))
-            #wind_directions = list(data['wind']['10_minute_average_wind_direction']['list'].values())
-            #wind_directions = [float(w) for w in wind_directions]
-            #wind_strengths = list(data['wind']['wind_speed']['list'].values())
-            #wind_strengths = [float(w) for w in wind_strengths]
-            #gusts = list(data['wind']['wind_gust']['list'].values())
-            #gusts = [float(g) for g in gusts]
-            #df.loc[df["Date"] == date_previous_day, "pluie"] = rain_24h_at_00h
-            #df.loc[df["Date"] == date, "watt-heure/m²"] = solar_wh_per_m2
-            #if date == available_days[0]: # if it's the most recent day, 
-            #    df.loc[df["Date"] == date, "pluie"] = last_daily_rain
-            #wind_dir_symbol = wind_to_symbol(wind_directions, wind_strengths)
-            #df.loc[df["Date"] == date, "direction du vent"] = wind_dir_symbol
-            #df.loc[df["Date"] == date, "rafale max (km/h)"] = int(max(gusts))
         except Exception as e:
             print(f"Error processing data for {date}: {e}", full_data)
         date_day_before = date
@@ -344,13 +321,21 @@ def records_table():
     record_tmax = {'name': "Température max", 'value': tmax, 'unit': unit_focus, 'date' : tmax_time}
 
     # group dy date, take the mean if float, keep the first if not float
-    df_group_days = df.groupby("date").agg(lambda x: x.mean() if x.dtype in ['float64', 'int64'] else x.iloc[0])
+    df_group_days_mean = df.groupby("date").agg(lambda x: x.mean() if x.dtype in ['float64', 'int64'] else x.iloc[0])
+    df_group_days_max = df.groupby("date").agg(lambda x: x.max() if x.dtype in ['float64', 'int64'] else x.iloc[0])
+    df_group_days_min = df.groupby("date").agg(lambda x: x.min() if x.dtype in ['float64', 'int64'] else x.iloc[0])
     # TODO drop incomplete days
 
-    tminjour, tminjour_index = df_group_days[measure_focus].min(), df_group_days[measure_focus].idxmin()
-    tmaxjour, tmaxjour_index = df_group_days[measure_focus].max(), df_group_days[measure_focus].idxmax()
+    tminjour, tminjour_index = df_group_days_mean[measure_focus].min(), df_group_days_mean[measure_focus].idxmin()
+    tmaxjour, tmaxjour_index = df_group_days_mean[measure_focus].max(), df_group_days_mean[measure_focus].idxmax()
     record_coldest_day = {'name': "Jour le plus froid", 'value': f'{tminjour:.1f}', 'unit': unit_focus, 'date': tminjour_index}
     record_warmest_day = {'name': "Jour le plus chaud", 'value': f'{tmaxjour:.1f}', 'unit': unit_focus, 'date': tmaxjour_index}
+
+    tnmaxjour, tnmaxjour_index = df_group_days_min[measure_focus].max(), df_group_days_min[measure_focus].idxmax()
+    record_tnmaxjour = {'name': "Tmin maximale", 'value': f'{tnmaxjour:.1f}', 'unit': unit_focus, 'date': tnmaxjour_index}
+
+    tmminjour, tmminjour_index = df_group_days_max[measure_focus].min(), df_group_days_max[measure_focus].idxmin()
+    record_tmminjour = {'name': "Tmax minimale", 'value': f'{tmminjour:.1f}', 'unit': unit_focus, 'date': tmminjour_index}
 
     measure_focus, unit_focus = "absolute", list(df["absolute_unit"])[0]
     pressure_min, pressure_min_index = df[measure_focus].min(), df[measure_focus].idxmin()
@@ -375,16 +360,6 @@ def records_table():
     rain_24h_max_time = df.loc[rain_24h_max_index, "datetime"]
     record_rain_24h_max = {'name': "Pluie max en 24h", 'value': rain_24h_max, 'unit': unit_focus, 'date' : rain_24h_max_time}
 
-    ## 💧 Pluviométrie glissante
-    #for h in [1, 12, 24, 48, 240, 480]:
-    #    val, start, end = rolling_max_rain(h)
-    #    label = f"Pluviométrie max {h if h<24 else int(h/24)}{'h' if h<24 else ' jours'}"
-    #    add_record(label, val, "mm", start, end)
-    ## 🌬️ Vent
-    #add_record("Rafale max", df["wind_gust"].max(), "km/h", df["wind_gust"].idxmax())
-    #mean1h, t1h = rolling_mean(df["wind_speed"], 1, "max")
-    #add_record("Vent moyen max 1h", mean1h, "km/h", t1h, t1h + timedelta(hours=1))
-
     # TODO
     # nombre max de jours de gel par hiver
     # nombre min de jours de gel par hiver
@@ -395,11 +370,17 @@ def records_table():
     # gelée la plus tardive
     # gelée la plus précoce
     # nuit la plus chaude
+    # max vent 1h
+    # max vent 24h
+    # max pluie 1 semaine glissante
+    # max pluie 30 jours glissants
 
     records.append(record_tmin)
     records.append(record_tmax)
     records.append(record_coldest_day)
     records.append(record_warmest_day)
+    records.append(record_tnmaxjour)
+    records.append(record_tmminjour)
     records.append(record_wind_gust_max)
     records.append(record_rain_1h_max)
     records.append(record_rain_24h_max)
