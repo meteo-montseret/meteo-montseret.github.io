@@ -20,7 +20,7 @@ def update_data():
 
         #print(date, end_date)
         if date_str == end_date_str:
-            download_this_one = True
+            download_this_one = False
         elif os.path.exists(filepath):
             download_this_one = False
         else:
@@ -97,7 +97,7 @@ def celsius_to_color(temp):
     
     return '#ffffffff'
 
-def rain_mm_to_color(rain_mm):
+def rain_mm_to_color(rain_mm, period="daily"):
     reference_points = {
         ( 0, 0.1) :     ('#ffffffff', 'black'),
         ( 0.1, 1) :     ('#00ccffff', 'black'),
@@ -108,6 +108,9 @@ def rain_mm_to_color(rain_mm):
         ( 50, 100) :    ('#260080ff', 'white'), 
         (100, 10000) :  ('#8208a7ff', 'white'),
     }
+
+    if period == "monthly":
+        rain_mm = rain_mm / 30.0
 
     # nan check
     if rain_mm != rain_mm:
@@ -122,7 +125,7 @@ def rain_mm_to_color(rain_mm):
     
     return '#ffffffff', 'black'
 
-def whm2_to_color(whm2):
+def whm2_to_color(whm2, period="daily"):
     reference_points = {
         100 : "#d3d3d3ff",
         200 : "#e7e7e7ff",
@@ -137,6 +140,10 @@ def whm2_to_color(whm2):
         6400 : '#552200ff',
         10000 : '#2b1100ff',
     }
+
+    if period == "monthly":
+        whm2 = whm2 / 30.0
+
     if whm2 != whm2:  # NaN check
         return '#ffffffff', 'black'
     if whm2 < 0:
@@ -211,7 +218,6 @@ def days_table():
             if hour_first_point == "00:00":
                 # replace the total of rain rates by the 24h total since it is more accurate
                 rain_24h_at_00h = day_df["24_hours"].iloc[0]
-                print(f"Using 24h rain at 00:00 for {date} : {rain_24h_at_00h}mm")
                 df.loc[df["Date"] == date_day_before, "pluie"] = rain_24h_at_00h
             rain_this_day = day_df["rain_rate"].sum()
             rain_this_day = rain_this_day * (5 / 60.0) # convert from mm in 5min to mm in 1h
@@ -228,7 +234,7 @@ def days_table():
             df.loc[df["Date"] == date, "vent moyen (km/h)"] = average_wind_speed
             df.loc[df["Date"] == date, "rafale max (km/h)"] = max_gust
         except Exception as e:
-            print(f"Error processing data for {date}: {e}", full_data)
+            print(f"Error processing data for {date}: {e}")#, full_data)
         date_day_before = date
     return df
 
@@ -268,8 +274,75 @@ def days_html():
     days_html_table = styled_df.format(round_dict).set_table_styles(table_styles).hide(axis='index').to_html()
     return days_html_table
 
+def months_table():
+    full_data = full_data_df()
+    full_data["date"] = pd.to_datetime(full_data["date"])
+    full_data["month"] = full_data["date"].dt.to_period("M")
+    available_months = full_data["month"].unique()
+    df = pd.DataFrame(
+        columns=["Mois", 
+                 "Tmin", "Tmoy", "Tmax", 
+                 "pluie", 
+                 "watt-heure/m²", 
+                 "vent moyen (km/h)", 
+                 "rafale max (km/h)"], 
+        index=available_months
+    )
+    df_group_months_mean = full_data.groupby("month").agg(lambda x: x.mean() if x.dtype in ['float64', 'int64'] else x.iloc[0])
+    df_group_months_max = full_data.groupby("month").agg(lambda x: x.max() if x.dtype in ['float64', 'int64'] else x.iloc[0])
+    df_group_months_min = full_data.groupby("month").agg(lambda x: x.min() if x.dtype in ['float64', 'int64'] else x.iloc[0])
+    df_group_months_sum = full_data.groupby("month").agg(lambda x: x.sum() if x.dtype in ['float64', 'int64'] else x.iloc[0])
+    df['Mois'] = df.index.astype(str)
+    df['Tmin'] = df_group_months_min["temperature"]
+    df['Tmoy'] = df_group_months_mean["temperature"]
+    df['Tmax'] = df_group_months_max["temperature"]
+    df['pluie'] = df_group_months_sum["rain_rate"] * (5 / 60.0) # TODO take the 24h totals of every day instead
+    df['watt-heure/m²'] = df_group_months_sum["solar"] * (5 / 60.0)
+    df['vent moyen (km/h)'] = df_group_months_mean["wind_speed"]
+    df['rafale max (km/h)'] = df_group_months_max["wind_gust"]
+    return df
+
 def months_html():
-    return ""
+
+    df = months_table()
+    print(df)
+
+    # reverse the order of the months
+    df = df.iloc[::-1]
+
+
+    styled_df = df.style
+    styled_df = styled_df.map(lambda x: f'background-color: {celsius_to_color(x)}; color: black;', subset=['Tmin'])
+    styled_df = styled_df.map(lambda x: f'background-color: {celsius_to_color(x)}; color: black;', subset=['Tmoy'])
+    styled_df = styled_df.map(lambda x: f'background-color: {celsius_to_color(x)}; color: black;', subset=['Tmax'])
+    #styled_df = styled_df.map(lambda x: f'background-color: {TODO(x)}; color: black;', subset=['rafale max'])
+    styled_df = styled_df.map(lambda x: f'background-color: {rain_mm_to_color(x, period="monthly")[0]}; color: {rain_mm_to_color(x, period="monthly")[1]};', subset=['pluie'])
+    styled_df = styled_df.map(lambda x: f'background-color: {whm2_to_color(x, period="monthly")[0]}; color: {whm2_to_color(x, period="monthly")[1]};', subset=['watt-heure/m²'])
+    
+    round_dict = {
+        'Tmin': '{:.1f}',
+        'Tmoy': '{:.1f}',
+        'Tmax': '{:.1f}',
+        'pluie': '{:.1f}',
+        'watt-heure/m²': '{:.0f}',
+        'vent moyen (km/h)': '{:.1f}',
+        'rafale max (km/h)': '{:.0f}',
+    }
+    
+    table_styles = [
+        {'selector': 'table', 'props': [('border-collapse', 'collapse'), ('width', '100%')]},
+        {'selector': 'th', 'props': [
+            ('background-color', "#B1B1B1"), 
+            ('color', 'black'), 
+            ('padding', '8px'),
+            ('position', 'sticky'),
+            ('top', '0'),
+            ('z-index', '10')  # keep header above other cells when scrolling
+        ]},
+        {'selector': 'td', 'props': [('padding', '4px 8px'), ('border-bottom', '1px solid #ddd')]},
+    ]
+    months_html_table = styled_df.format(round_dict).set_table_styles(table_styles).hide(axis='index').to_html()
+    return months_html_table
 
 def full_data_df():
     list_df_of_days = []
@@ -324,6 +397,8 @@ def records_table():
     df_group_days_mean = df.groupby("date").agg(lambda x: x.mean() if x.dtype in ['float64', 'int64'] else x.iloc[0])
     df_group_days_max = df.groupby("date").agg(lambda x: x.max() if x.dtype in ['float64', 'int64'] else x.iloc[0])
     df_group_days_min = df.groupby("date").agg(lambda x: x.min() if x.dtype in ['float64', 'int64'] else x.iloc[0])
+    df_group_days_gap = df.groupby("date").agg(lambda x: x.max() - x.min() if x.dtype in ['float64', 'int64'] else x.iloc[0])
+    df_group_days_sum = df.groupby("date").agg(lambda x: x.sum() if x.dtype in ['float64', 'int64'] else x.iloc[0])
     # TODO drop incomplete days
 
     tminjour, tminjour_index = df_group_days_mean[measure_focus].min(), df_group_days_mean[measure_focus].idxmin()
@@ -336,6 +411,9 @@ def records_table():
 
     tmminjour, tmminjour_index = df_group_days_max[measure_focus].min(), df_group_days_max[measure_focus].idxmin()
     record_tmminjour = {'name': "Tmax minimale", 'value': f'{tmminjour:.1f}', 'unit': unit_focus, 'date': tmminjour_index}
+
+    tgapjour, tgapjour_index = df_group_days_gap[measure_focus].max(), df_group_days_gap[measure_focus].idxmax()
+    record_tgapjour = {'name': "Écart max dans la journée", 'value': f'{tgapjour:.1f}', 'unit': unit_focus, 'date': tgapjour_index}
 
     measure_focus, unit_focus = "absolute", list(df["absolute_unit"])[0]
     pressure_min, pressure_min_index = df[measure_focus].min(), df[measure_focus].idxmin()
@@ -360,6 +438,10 @@ def records_table():
     rain_24h_max_time = df.loc[rain_24h_max_index, "datetime"]
     record_rain_24h_max = {'name': "Pluie max en 24h", 'value': rain_24h_max, 'unit': unit_focus, 'date' : rain_24h_max_time}
 
+    measure_focus, unit_focus = "solar", list(df["solar_unit"])[0]
+    solar_max, solar_max_index = df_group_days_sum[measure_focus].max(), df_group_days_sum[measure_focus].idxmax()
+    display_value = solar_max  * (5 / 60.0) # convert from W/m² in 5min to Wh/m² in 1h
+    record_solar_max = {'name': "Jour le plus ensoleillé", 'value': display_value, 'unit': "Wh/m²", 'date' : solar_max_index}
     # TODO
     # nombre max de jours de gel par hiver
     # nombre min de jours de gel par hiver
@@ -369,7 +451,6 @@ def records_table():
     # plus longue gelée continue
     # gelée la plus tardive
     # gelée la plus précoce
-    # nuit la plus chaude
     # max vent 1h
     # max vent 24h
     # max pluie 1 semaine glissante
@@ -381,11 +462,13 @@ def records_table():
     records.append(record_warmest_day)
     records.append(record_tnmaxjour)
     records.append(record_tmminjour)
+    records.append(record_tgapjour)
     records.append(record_wind_gust_max)
     records.append(record_rain_1h_max)
     records.append(record_rain_24h_max)
     records.append(record_pressure_min)
     records.append(record_pressure_max)
+    records.append(record_solar_max)
 
     records_df = pd.DataFrame(records)
     return records_df
@@ -394,7 +477,6 @@ def records_html():
     #df = pd.read_csv("data/records.csv")
     df = records_table()
     content = df.to_string(index=False, header=False)
-    print(df)
     html_content = f"<pre>{content}</pre>"
     return html_content
 
@@ -416,13 +498,21 @@ def frame_html(live_html, days_html, months_html, records_html):
             body {{
                 font-family: Arial, sans-serif;
                 padding: 20px;
-                background-color: #f4f4f4;
+                margin: 0;
+                min-height: 100vh;
+                background-image: url("background-grey.png");
+                background-size: cover;       /* fill all */
+                background-position: center;   /* center image */
+                background-repeat: no-repeat;
             }}
 
             h1 {{
-                text-align: center;
-                margin-bottom: 5px;
-                color: #333;
+                background-color: #333;
+                color: white;
+                padding: 5px 10px;
+                border-radius: 3px;
+                width: fit-content;
+                margin: 0 auto;
             }}
 
             /* GRILLE PRINCIPALE - Modifiez ici pour changer la disposition */
@@ -524,14 +614,17 @@ def frame_html(live_html, days_html, months_html, records_html):
             </div>
 
             <div class="case case-days">
+                <h2>Climatologie quotidienne</h2>
                 {days_html}
             </div>
 
             <div class="case case-months">
+                <h2>Climatologie mensuelle</h2>
                 {months_html}
             </div>
 
             <div class="case case-records">
+                <h2>Records</h2>
                 {records_html}
             </div>
 
