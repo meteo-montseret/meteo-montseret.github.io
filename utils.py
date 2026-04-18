@@ -20,7 +20,7 @@ def update_data():
 
         #print(date, end_date)
         if date_str == end_date_str:
-            download_this_one = False
+            download_this_one = True
         elif os.path.exists(filepath):
             download_this_one = False
         else:
@@ -179,10 +179,14 @@ def wind_to_symbol(wind_directions, wind_strengths):
     return most_frequent_direction
 
 def live_html():
-    for key in LINKS:
-        link = LINKS[key]
-        content = f'live on <a href="{link}" target="_blank">{key}</a>'
-    content += f"<br>Last update : {datetime.now(ZoneInfo(TIMEZONE)).strftime('%Y-%m-%d %H:%M:%S')}"
+    windy_link = LINKS.get("windy", "#")
+    content = f'live on <a href="{windy_link}" target="_blank">Windy</a>'
+    model_name = LINKS.get("model name", None)
+    model_link = LINKS.get("model link", None)
+    if model_name:
+        content += f'<br>station : {model_name} (<a href="{model_link}" target="_blank">ecowitt</a>)'
+    content += f'<br>début des relevés : {START_DATE}'
+    content += f"<br>dernières données : {datetime.now(ZoneInfo(TIMEZONE)).strftime('%Y-%m-%d %H:%M:%S')}"
     return content
 
 def days_table():
@@ -292,11 +296,12 @@ def months_table():
     df_group_months_max = full_data.groupby("month").agg(lambda x: x.max() if x.dtype in ['float64', 'int64'] else x.iloc[0])
     df_group_months_min = full_data.groupby("month").agg(lambda x: x.min() if x.dtype in ['float64', 'int64'] else x.iloc[0])
     df_group_months_sum = full_data.groupby("month").agg(lambda x: x.sum() if x.dtype in ['float64', 'int64'] else x.iloc[0])
+    df_group_months_last = full_data.groupby("month").agg(lambda x: x.iloc[0])
     df['Mois'] = df.index.astype(str)
     df['Tmin'] = df_group_months_min["temperature"]
     df['Tmoy'] = df_group_months_mean["temperature"]
     df['Tmax'] = df_group_months_max["temperature"]
-    df['pluie'] = df_group_months_sum["rain_rate"] * (5 / 60.0) # TODO take the 24h totals of every day instead
+    df['pluie'] = df_group_months_max["monthly"]
     df['watt-heure/m²'] = df_group_months_sum["solar"] * (5 / 60.0)
     df['vent moyen (km/h)'] = df_group_months_mean["wind_speed"]
     df['rafale max (km/h)'] = df_group_months_max["wind_gust"]

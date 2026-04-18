@@ -8,4 +8,7 @@ START_DATE = '2026-01-06' # station installed on 2026-01-06
 TIMEZONE = "Europe/Paris"
 
 PAGE_TITLE = 'Meteo Montseret'
-LINKS = {'windy' : 'https://www.windy.com/station/pws-f0860d44?43.114,2.837,11,p:temp'}
+LINKS = {'windy' : 'https://www.windy.com/station/pws-f0860d44?43.114,2.837,11,p:temp',
+         'code source' : 'https://github.com/meteo-montseret/meteo-montseret.github.io',
+         'model name' : 'Ecowitt GW3002 wi-fi | capteurs WS69',
+         'model link' : 'https://shop.ecowitt.com/fr-fr/products/gw3002'}
